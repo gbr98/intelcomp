@@ -86,6 +86,28 @@ int main(int argc, char** argv){
 
 	Solution s = {n, new int[5]{5,1,9,0,2}, new int[5]{7,3,4,6,8}, 5, 5};
 	s.fitness = evaluate(s, A, tam);
-	cout << s.fitness << endl;
+	//cout << s.fitness << endl;
+
+	// construct
+	int* disp = new int[n];
+	for(int i = 0; i < n; i++){
+		disp[i] = i;
+	}
+	vector<int> to_place(disp, disp+n);
+	vector<int> up, dn;
+	int pick = 0;
+	while(!to_place.empty()){
+		pick = rand()%to_place.size();
+		side = rand()%2;
+		if(side == 1){
+			up.push_back(to_place[pick]);
+		} else {
+			dn.push_back(to_place[pick]);
+		}
+		to_place.erase(pick);
+	}
+	Solution sol = {n, &up[0], &dn[0], up.size(), dn.size()};
+	sol.fitness = evaluate(sol, A, tam);
+	cout << sol.fitness << endl;
 	return 0;
 }
