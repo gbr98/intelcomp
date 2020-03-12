@@ -4,6 +4,7 @@
 #include<vector>
 #include<string>
 #include<iostream>
+#include<random>
 
 using namespace std;
 
@@ -46,7 +47,19 @@ float evaluate(Solution x, float** A, float* tam){
 			cost += fabs(pos_x[j]-pos_x[i])*A[j][i];
 		}
 	}
+	delete pos_x;
 	return cost;
+}
+
+void physical_random(double** B, double** A, double* tam, int n){
+	double* x = new double[n];
+	double* v = new double[n];
+	for(int i = 0; i < n; i++){
+		x[i] = unif(0.0,1.0);
+	}
+	for(int it = 0; it < 100; it++){
+		
+	}
 }
 
 void string_to_vec(string strc, float* vec){
@@ -95,7 +108,7 @@ int main(int argc, char** argv){
 	}
 	vector<int> to_place(disp, disp+n);
 	vector<int> up, dn;
-	int pick = 0;
+	int pick = 0, side;
 	while(!to_place.empty()){
 		pick = rand()%to_place.size();
 		side = rand()%2;
@@ -104,10 +117,19 @@ int main(int argc, char** argv){
 		} else {
 			dn.push_back(to_place[pick]);
 		}
-		to_place.erase(pick);
+		to_place.erase(to_place.begin()+pick);
 	}
-	Solution sol = {n, &up[0], &dn[0], up.size(), dn.size()};
+	Solution sol = {n, &up[0], &dn[0], (int)up.size(), (int)dn.size()};
 	sol.fitness = evaluate(sol, A, tam);
 	cout << sol.fitness << endl;
+	
+	// deleting...
+	for(int i = 0; i < n; i++){
+		delete A[i];
+	}
+	delete A;
+	delete tam;
+	delete strc;
+	delete disp;
 	return 0;
 }
