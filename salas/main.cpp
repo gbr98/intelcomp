@@ -58,6 +58,33 @@ vector<Sala>* carregaInstancia(string nomeArquivo) {
     return salas;
 }
 
+void heapfy(vector<double> *custosCandidatos, vector<int> *idCandidatos, int i, int n) {
+    int maior = i;
+    int esquerda= 2*i +1;
+    int direita = 2*i +2;
+    if(esquerda < n && custosCandidatos->at(esquerda) < custosCandidatos->at(maior))
+        maior = esquerda;
+    if(direita < n && custosCandidatos->at(direita) < custosCandidatos->at(maior))
+        maior = direita;
+    if(maior != i) {
+        swap(custosCandidatos->at(i), custosCandidatos->at(maior));
+        swap(idCandidatos->at(i), idCandidatos->at(maior));
+        heapfy(custosCandidatos, idCandidatos, maior, n);
+    }
+}
+
+void heapSort(vector<double> *custosCandidatos, vector<int> *idCandidatos) {
+    double aux;
+    int n = custosCandidatos->size();
+    for(int i=custosCandidatos->size()/2 - 1; i>=0; i--)
+        heapfy(custosCandidatos, idCandidatos, i, n);
+    for(int i=custosCandidatos->size()-1; i>=0; i--) {
+        swap(custosCandidatos->at(i), custosCandidatos->at(0));
+        swap(idCandidatos->at(i), idCandidatos->at(0));
+        heapfy(custosCandidatos, idCandidatos, 0, i);
+    }
+}
+
 double calculaCusto(vector<Sala> *salas, double *corredor) {
     double custo = 0;
     for(int i=0; i<salas->size(); i++) {
@@ -97,17 +124,32 @@ int selecionaOrigem(vector<Sala> *salas) {
     return idMenorFluxo;
 }
 
+double* buscaLocalSwap(vector<Sala> *salas, double* corredor) {
+    int numSalas = salas->size();
+    double* novoCorredor = new double[numSalas];
+
+    for(int i=0; i<numSalas; i++)
+        novoCorredor[i] = corredor[i];
+
+    for(int i=0; i<numSalas; i++) {
+        for(int j=1; j<numSalas; j++) {
+
+        }
+    }
+}
+
 double* guloso(vector<Sala> *salas) {
     int numSalas = salas->size();
     int numSalasInseridas = 0;
     int idAtual;
-    int idMenorCusto;
-    double menorCusto;
+    int idMaiorFluxo;
+    int idUltimaAdd;
+    double maiorFluxo;
     double *corredor = new double[numSalas];
     double espOcupadoSup = 0;
     double espOcupadoInf = 0;
     double espOcupadoMenor = 0;
-    double larguraMenorCusto;
+    double larguraMaiorFluxo;
     double custo = 0;
     double custoAux;
     bool *salasInseridas = new bool[numSalas];
@@ -123,63 +165,41 @@ double* guloso(vector<Sala> *salas) {
     salasInseridas[idAtual] = true;
     numSalasInseridas++;
 
+    idUltimaAdd = idAtual;
     while(numSalasInseridas < numSalas) {
-        menorCusto = INFINITY;
+        maiorFluxo = 0;
         for(int i=0; i<numSalas; i++) {
             if(!salasInseridas[i]) {
-                custoAux = estimaCusto(salas, custo, corredor, espOcupadoMenor + salas->at(i).largura/2, i);
-                if(custoAux < menorCusto) {
-                    idMenorCusto = i;
-                    menorCusto = custoAux;
-                    larguraMenorCusto = salas->at(i).largura;
+                custoAux = fabs((fabs(corredor[idUltimaAdd]) - espOcupadoMenor + salas->at(i).largura/2)) * salas->at(idUltimaAdd).fluxo[i];
+                
+                if(custoAux > maiorFluxo) {
+                    idMaiorFluxo = i;
+                    maiorFluxo = custoAux;
+                    larguraMaiorFluxo = salas->at(i).largura;
                 }
             }
         }
+        
         if(espOcupadoSup < espOcupadoInf) {
-            corredor[idMenorCusto] = espOcupadoSup + larguraMenorCusto/2;
-            espOcupadoSup += larguraMenorCusto;
+            corredor[idMaiorFluxo] = espOcupadoSup + larguraMaiorFluxo/2;
+            espOcupadoSup += larguraMaiorFluxo;
         } else {
-            corredor[idMenorCusto] = (espOcupadoInf + larguraMenorCusto/2)*-1;
-            espOcupadoInf += larguraMenorCusto;
+            corredor[idMaiorFluxo] = (espOcupadoInf + larguraMaiorFluxo/2)*-1;
+            espOcupadoInf += larguraMaiorFluxo;
         }
         if(espOcupadoSup < espOcupadoInf)
             espOcupadoMenor = espOcupadoSup;
         else
             espOcupadoMenor = espOcupadoInf;
-
-        salasInseridas[idMenorCusto] = true;
+        
+        salasInseridas[idMaiorFluxo] = true;
         numSalasInseridas++;
+
+        idUltimaAdd = idMaiorFluxo;
     }
 
     delete[] salasInseridas;
     return corredor;
-}
-
-void heapfy(vector<double> *custosCandidatos, vector<int> *idCandidatos, int i, int n) {
-    int maior = i;
-    int esquerda= 2*i +1;
-    int direita = 2*i +2;
-    if(esquerda < n && custosCandidatos->at(esquerda) > custosCandidatos->at(maior))
-        maior = esquerda;
-    if(direita < n && custosCandidatos->at(direita) > custosCandidatos->at(maior))
-        maior = direita;
-    if(maior != i) {
-        swap(custosCandidatos->at(i), custosCandidatos->at(maior));
-        swap(idCandidatos->at(i), idCandidatos->at(maior));
-        heapfy(custosCandidatos, idCandidatos, maior, n);
-    }
-}
-
-void heapSort(vector<double> *custosCandidatos, vector<int> *idCandidatos) {
-    double aux;
-    int n = custosCandidatos->size();
-    for(int i=custosCandidatos->size()/2 - 1; i>=0; i--)
-        heapfy(custosCandidatos, idCandidatos, i, n);
-    for(int i=custosCandidatos->size()-1; i>=0; i--) {
-        swap(custosCandidatos->at(i), custosCandidatos->at(0));
-        swap(idCandidatos->at(i), idCandidatos->at(0));
-        heapfy(custosCandidatos, idCandidatos, 0, i);
-    }
 }
 
 double* auxGulosoRandomizado(int seed, float alpha, vector<Sala> *salas) {
@@ -188,20 +208,20 @@ double* auxGulosoRandomizado(int seed, float alpha, vector<Sala> *salas) {
     int numSalasInseridas = 0;
     int aleatorio;
     int idSala;
+    int idUltimaAdd;
     double *corredor = new double[numSalas];
     double espOcupadoSup = 0;
     double espOcupadoInf = 0;
     double espOcupadoMenor = 0;
-    double custo = 0;
     vector<int> *idCandidatos = new vector<int>;
-    vector<double> *custosCandidatos = new vector<double>;
+    vector<double> *fluxoCandidatos = new vector<double>;
     bool *salasInseridas = new bool[numSalas];
 
     for(int i=0; i<numSalas; i++) {
         corredor[i] = 0;
         salasInseridas[i] = false;
         idCandidatos->push_back(i);
-        custosCandidatos->push_back(INFINITY);
+        fluxoCandidatos->push_back(0);
     }
 
     idSala = selecionaOrigem(salas);
@@ -210,25 +230,19 @@ double* auxGulosoRandomizado(int seed, float alpha, vector<Sala> *salas) {
     salasInseridas[idSala] = true;
     numSalasInseridas++;
 
+    idUltimaAdd = idSala;
     while(numSalasInseridas < numSalas) {
         for(int i=0; i<numSalas; i++) {
             idCandidatos->at(i) = i;
             if(!salasInseridas[i])
-                custosCandidatos->at(i) = estimaCusto(salas, custo, corredor, espOcupadoMenor + salas->at(i).largura/2, i);
+                fluxoCandidatos->at(i) = fabs((fabs(corredor[idUltimaAdd]) - espOcupadoMenor + salas->at(i).largura/2)) * salas->at(idUltimaAdd).fluxo[i];
             else
-                custosCandidatos->at(i) = INFINITY;
+                fluxoCandidatos->at(i) = 0;
         }
-        heapSort(custosCandidatos, idCandidatos);
-        /*
-        aux = custosCandidatos->at(0)*(1.0+alpha);
-        contCandidatos = 0;
-        while(contCandidatos < custosCandidatos->size() && custosCandidatos->at(contCandidatos) <= aux){
-            contCandidatos++;
-        }
-        aleatorio = rand() % contCandidatos;
-        */
+        heapSort(fluxoCandidatos, idCandidatos);
+        
         aleatorio = rand()%(int)ceil(alpha*(numSalas-numSalasInseridas));
-        custo = custosCandidatos->at(aleatorio);
+        fluxoCandidatos->at(aleatorio);
         idSala = idCandidatos->at(aleatorio);
         if(espOcupadoSup < espOcupadoInf) {
             corredor[idSala] = espOcupadoSup + salas->at(idSala).largura/2;
@@ -247,7 +261,7 @@ double* auxGulosoRandomizado(int seed, float alpha, vector<Sala> *salas) {
     }
 
     delete idCandidatos;
-    delete custosCandidatos;
+    delete fluxoCandidatos;
     delete[] salasInseridas;
     return corredor;
 }
@@ -374,6 +388,7 @@ void cenarioUm(string arquivo) {
 
     for(int i=0; i<salas->size(); i++)
         delete[] salas->at(i).fluxo;
+        
     delete salas;
 }
 
