@@ -238,7 +238,7 @@ double* auxGulosoRandomizado(int seed, float alpha, vector<Sala> *salas) {
                 fluxoCandidatos->at(i) = fabs((fabs(corredor[idUltimaAdd]) - espOcupadoMenor + salas->at(i).largura/2)) * salas->at(idUltimaAdd).fluxo[i];
             else
                 fluxoCandidatos->at(i) = 0;
-        }
+        } 
         heapSort(fluxoCandidatos, idCandidatos);
         
         aleatorio = rand()%(int)ceil(alpha*(numSalas-numSalasInseridas));
