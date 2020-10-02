@@ -1,4 +1,5 @@
 #include <iostream>
+#include <algorithm> 
 #include <fstream>
 #include <sstream>
 #include <math.h>
@@ -16,8 +17,28 @@ typedef struct {
     int *fluxo = nullptr;
 } Sala;
 
+struct AuxOrdena{
+    int idCandidato;
+    double fluxoCandidato;
+
+    AuxOrdena(int idCandidato, double fluxoCandidato) {
+        this->idCandidato = idCandidato;
+        this->fluxoCandidato = fluxoCandidato;
+    }
+};
+
+struct AuxOrdenaCorredor{
+    double x;
+    Sala* sala;
+
+    AuxOrdenaCorredor(double x, Sala* sala) {
+        this->x = x;
+        this->sala = sala;
+    }
+};
+
 vector<Sala>* carregaInstancia(string nomeArquivo) {
-    vector<Sala> *salas = new vector<Sala>;
+    vector<Sala> *salas;
     int numSalas;
     int *fluxo;
     ifstream arquivoEntrada;
@@ -26,6 +47,8 @@ vector<Sala>* carregaInstancia(string nomeArquivo) {
     arquivoEntrada.open(nomeArquivo);
 
     if(arquivoEntrada.is_open()) {
+        salas = new vector<Sala>;
+
         getline(arquivoEntrada, str);
         ss << str;
         ss >> numSalas;
@@ -53,36 +76,63 @@ vector<Sala>* carregaInstancia(string nomeArquivo) {
             }
             salas->at(i).fluxo = fluxo;
         }
-    } else
+    } else {
         cout << "Arquivo nao Encontrado" << endl;
+        return nullptr;
+    }
     return salas;
 }
 
-void heapfy(vector<double> *custosCandidatos, vector<int> *idCandidatos, int i, int n) {
-    int maior = i;
-    int esquerda= 2*i +1;
-    int direita = 2*i +2;
-    if(esquerda < n && custosCandidatos->at(esquerda) < custosCandidatos->at(maior))
-        maior = esquerda;
-    if(direita < n && custosCandidatos->at(direita) < custosCandidatos->at(maior))
-        maior = direita;
-    if(maior != i) {
-        swap(custosCandidatos->at(i), custosCandidatos->at(maior));
-        swap(idCandidatos->at(i), idCandidatos->at(maior));
-        heapfy(custosCandidatos, idCandidatos, maior, n);
-    }
+bool compara_sort(AuxOrdena* a, AuxOrdena* b) {
+    return (a->fluxoCandidato < b->fluxoCandidato);
 }
 
-void heapSort(vector<double> *custosCandidatos, vector<int> *idCandidatos) {
-    double aux;
-    int n = custosCandidatos->size();
-    for(int i=custosCandidatos->size()/2 - 1; i>=0; i--)
-        heapfy(custosCandidatos, idCandidatos, i, n);
-    for(int i=custosCandidatos->size()-1; i>=0; i--) {
-        swap(custosCandidatos->at(i), custosCandidatos->at(0));
-        swap(idCandidatos->at(i), idCandidatos->at(0));
-        heapfy(custosCandidatos, idCandidatos, 0, i);
+bool compara_sort_corredor(AuxOrdenaCorredor* a, AuxOrdenaCorredor* b) {
+    return (a->x < b->x);
+}
+
+bool verificaSolucao(vector<Sala> *salas, double *corredor) {
+    int numSalas = salas->size();
+    int indiceSup;
+    bool valida;
+    double posicaoAtual;
+    vector<AuxOrdenaCorredor*> auxCorredor;
+    
+    for(int i=0; i<numSalas; i++) 
+        auxCorredor.push_back(new AuxOrdenaCorredor(corredor[i], &salas->at(i)));
+    sort(auxCorredor.begin(), auxCorredor.end(), compara_sort_corredor);
+
+    for(int i=0; i<numSalas; i++)
+        if(auxCorredor[i]->x > 0) {
+            indiceSup = i;
+            break;
+        }
+
+    valida = true;
+
+    //CORREDOR INFERIOR
+    posicaoAtual = 0;
+    for(int i=indiceSup-1; i>=0; i--) {
+        if(posicaoAtual - (auxCorredor[i]->sala->largura / 2.0) != auxCorredor[i]->x) {
+            valida = false;
+            break;
+        }
+        posicaoAtual -= auxCorredor[i]->sala->largura;
     }
+
+    //CORREDOR SUPERIOR
+    if(valida) {
+        posicaoAtual = 0;
+        for(int i=indiceSup; i<numSalas; i++) {
+            if(posicaoAtual + (auxCorredor[i]->sala->largura / 2.0) != auxCorredor[i]->x) {
+                valida = false;
+                break;
+            }
+            posicaoAtual += auxCorredor[i]->sala->largura;
+        }
+    }
+
+    return valida;
 }
 
 double calculaCusto(vector<Sala> *salas, double *corredor) {
@@ -103,7 +153,12 @@ double estimaCusto(vector<Sala> *salas, double custo, double *corredor, double p
 }
 
 void apresentaSolucao(vector<Sala> *salas, double* corredor) {
-    cout << "Custo: " << calculaCusto(salas, corredor) << endl;
+    cout << "Custo: " << calculaCusto(salas, corredor);
+    if(verificaSolucao(salas, corredor))
+        cout << ", Valida" << endl;
+    else
+        cout << ", Invalida" << endl;
+    cout << endl;
 }
 
 int selecionaOrigem(vector<Sala> *salas) {
@@ -124,17 +179,185 @@ int selecionaOrigem(vector<Sala> *salas) {
     return idMenorFluxo;
 }
 
-double* buscaLocalSwap(vector<Sala> *salas, double* corredor) {
+void buscaLocalSwap(vector<Sala> *salas, double* corredor) {
     int numSalas = salas->size();
-    double* novoCorredor = new double[numSalas];
+    int indiceSup;
+    bool atualizou;
+    double diferenca;
+    double custo;
+    double novoCusto;
+    vector<AuxOrdenaCorredor*> novoCorredor;
+    vector<vector<double>*> fluxos;
+    Sala* auxSwap;
 
-    for(int i=0; i<numSalas; i++)
-        novoCorredor[i] = corredor[i];
+    custo = calculaCusto(salas, corredor);
 
     for(int i=0; i<numSalas; i++) {
-        for(int j=1; j<numSalas; j++) {
-
+        novoCorredor.push_back(new AuxOrdenaCorredor(corredor[i], &salas->at(i)));
+        fluxos.push_back(new vector<double>());
+        for(int j=0; j<numSalas; j++) {
+            fluxos[i]->push_back(salas->at(i).fluxo[j]);
         }
+    }
+
+    atualizou = true;
+    while(atualizou) {
+        atualizou = false;
+        sort(novoCorredor.begin(), novoCorredor.end(), compara_sort_corredor);
+
+        for(int i=0; i<numSalas; i++)
+            if(novoCorredor[i]->x > 0) {
+                indiceSup = i;
+                break;
+            }
+        
+        //SWAP INFERIOR COM INFERIOR
+        for(int i=0; i<indiceSup; i++) {
+            for(int j=i+1; j<indiceSup; j++) {
+                diferenca = novoCorredor[i]->sala->largura - novoCorredor[j]->sala->largura;
+                auxSwap = novoCorredor[i]->sala;
+                novoCorredor[i]->sala = novoCorredor[j]->sala;
+                novoCorredor[j]->sala = auxSwap;
+            
+                novoCorredor[j]->x -= diferenca/2;
+                for(int k=j-1; k>i; k--) 
+                    novoCorredor[k]->x -= diferenca;
+                novoCorredor[i]->x -= diferenca/2;
+
+                novoCusto = 0;
+                for(int k=0; k<novoCorredor.size(); k++) {
+                    for(int l=k+1; l<novoCorredor.size(); l++)
+                            novoCusto += fabs(fabs(novoCorredor[k]->x) - fabs(novoCorredor[l]->x))*fluxos[novoCorredor[k]->sala->id]->at(novoCorredor[l]->sala->id);
+                }
+                
+                if(novoCusto < custo) {
+                    custo = novoCusto;
+                    atualizou = true;
+                    break;
+                } else {
+                    auxSwap = novoCorredor[i]->sala;
+                    novoCorredor[i]->sala = novoCorredor[j]->sala;
+                    novoCorredor[j]->sala = auxSwap;
+
+                    diferenca *= -1;
+                    novoCorredor[j]->x -= diferenca/2;
+                    for(int k=j-1; k>i; k--) 
+                        novoCorredor[k]->x -= diferenca;
+                    novoCorredor[i]->x -= diferenca/2;
+
+                    novoCusto = 0;
+                    for(int k=0; k<novoCorredor.size(); k++) {
+                        for(int l=k+1; l<novoCorredor.size(); l++)
+                                novoCusto += fabs(fabs(novoCorredor[k]->x) - fabs(novoCorredor[l]->x))*fluxos[novoCorredor[k]->sala->id]->at(novoCorredor[l]->sala->id);
+                    }
+                }
+            }
+            if(atualizou)
+                break;
+        }
+        
+        //SWAP SUPERIOR COM SUPERIOR
+        for(int i=indiceSup; i<numSalas; i++) { 
+            for(int j=i+1; j<numSalas; j++) {
+                diferenca = novoCorredor[j]->sala->largura - novoCorredor[i]->sala->largura;
+                auxSwap = novoCorredor[i]->sala;
+                novoCorredor[i]->sala = novoCorredor[j]->sala;
+                novoCorredor[j]->sala = auxSwap;
+            
+                novoCorredor[i]->x += diferenca/2;
+                for(int k=i+1; k<j; k++)
+                    novoCorredor[k]->x += diferenca;
+                novoCorredor[j]->x += diferenca/2;
+
+                novoCusto = 0;
+                for(int k=0; k<novoCorredor.size(); k++) {
+                    for(int l=k+1; l<novoCorredor.size(); l++)
+                        novoCusto += fabs(fabs(novoCorredor[k]->x) - fabs(novoCorredor[l]->x))*fluxos[novoCorredor[k]->sala->id]->at(novoCorredor[l]->sala->id);
+                }
+
+                if(novoCusto < custo) {
+                    custo = novoCusto;
+                    atualizou = true;
+                    break;
+                } else {
+                    auxSwap = novoCorredor[i]->sala;
+                    novoCorredor[i]->sala = novoCorredor[j]->sala;
+                    novoCorredor[j]->sala = auxSwap;
+                
+                    diferenca *= -1;
+                    novoCorredor[i]->x += diferenca/2;
+                    for(int k=i+1; k<j; k++)
+                        novoCorredor[k]->x += diferenca;
+                    novoCorredor[j]->x += diferenca/2;
+
+                    novoCusto = 0;
+                    for(int k=0; k<novoCorredor.size(); k++) {
+                        for(int l=k+1; l<novoCorredor.size(); l++)
+                            novoCusto += fabs(fabs(novoCorredor[k]->x) - fabs(novoCorredor[l]->x))*fluxos[novoCorredor[k]->sala->id]->at(novoCorredor[l]->sala->id);
+                    }
+                }
+            }
+            if(atualizou)
+                break;
+        }
+        
+        //SWAP INFERIOR COM SUPERIOR
+        for(int i=0; i<indiceSup; i++) {
+            for(int j=indiceSup; j<numSalas; j++) {
+                diferenca = novoCorredor[i]->sala->largura - novoCorredor[j]->sala->largura;
+                auxSwap = novoCorredor[i]->sala;
+                novoCorredor[i]->sala = novoCorredor[j]->sala;
+                novoCorredor[j]->sala = auxSwap;
+            
+                novoCorredor[i]->x += diferenca/2;
+                novoCorredor[j]->x += diferenca/2;
+                for(int k=i-1; k>=0; k--) 
+                    novoCorredor[k]->x += diferenca;
+                for(int k=j+1; k<numSalas; k++) 
+                    novoCorredor[k]->x += diferenca;
+
+
+                novoCusto = 0;
+                for(int k=0; k<novoCorredor.size(); k++) {
+                    for(int l=k+1; l<novoCorredor.size(); l++)
+                            novoCusto += fabs(fabs(novoCorredor[k]->x) - fabs(novoCorredor[l]->x))*fluxos[novoCorredor[k]->sala->id]->at(novoCorredor[l]->sala->id);
+                }
+                
+                if(novoCusto < custo) {
+                    custo = novoCusto;
+                    atualizou = true;
+                    break;
+                } else {
+                    auxSwap = novoCorredor[i]->sala;
+                    novoCorredor[i]->sala = novoCorredor[j]->sala;
+                    novoCorredor[j]->sala = auxSwap;
+                
+                    diferenca *= -1;
+                    novoCorredor[i]->x += diferenca/2;
+                    novoCorredor[j]->x += diferenca/2;
+                    for(int k=i-1; k>=0; k--) 
+                        novoCorredor[k]->x += diferenca;
+                    for(int k=j+1; k<numSalas; k++) 
+                        novoCorredor[k]->x += diferenca;
+
+                    novoCusto = 0;
+                    for(int k=0; k<novoCorredor.size(); k++) {
+                        for(int l=k+1; l<novoCorredor.size(); l++)
+                                novoCusto += fabs(fabs(novoCorredor[k]->x) - fabs(novoCorredor[l]->x))*fluxos[novoCorredor[k]->sala->id]->at(novoCorredor[l]->sala->id);
+                    }
+                }
+            }
+            if(atualizou)
+                break;
+        }
+    }
+
+    for(int i=0; i<numSalas; i++)
+        corredor[novoCorredor[i]->sala->id] = novoCorredor[i]->x;
+
+    for(int i=0; i<numSalas; i++) {
+        delete fluxos[i];
+        delete novoCorredor[i];
     }
 }
 
@@ -167,11 +390,10 @@ double* guloso(vector<Sala> *salas) {
 
     idUltimaAdd = idAtual;
     while(numSalasInseridas < numSalas) {
-        maiorFluxo = 0;
+        maiorFluxo = -1;
         for(int i=0; i<numSalas; i++) {
             if(!salasInseridas[i]) {
-                custoAux = fabs((fabs(corredor[idUltimaAdd]) - espOcupadoMenor + salas->at(i).largura/2)) * salas->at(idUltimaAdd).fluxo[i];
-                
+                custoAux = fabs((fabs(corredor[idUltimaAdd]) - espOcupadoMenor + salas->at(i).largura/2.0)) * salas->at(idUltimaAdd).fluxo[i];
                 if(custoAux > maiorFluxo) {
                     idMaiorFluxo = i;
                     maiorFluxo = custoAux;
@@ -181,10 +403,10 @@ double* guloso(vector<Sala> *salas) {
         }
         
         if(espOcupadoSup < espOcupadoInf) {
-            corredor[idMaiorFluxo] = espOcupadoSup + larguraMaiorFluxo/2;
+            corredor[idMaiorFluxo] = espOcupadoSup + larguraMaiorFluxo/2.0;
             espOcupadoSup += larguraMaiorFluxo;
         } else {
-            corredor[idMaiorFluxo] = (espOcupadoInf + larguraMaiorFluxo/2)*-1;
+            corredor[idMaiorFluxo] = (espOcupadoInf + larguraMaiorFluxo/2.0)*-1;
             espOcupadoInf += larguraMaiorFluxo;
         }
         if(espOcupadoSup < espOcupadoInf)
@@ -205,7 +427,6 @@ double* guloso(vector<Sala> *salas) {
 double* auxGulosoRandomizado(int seed, float alpha, vector<Sala> *salas) {
     srand(seed);
     int numSalas = salas->size();
-    int numSalasInseridas = 0;
     int aleatorio;
     int idSala;
     int idUltimaAdd;
@@ -213,42 +434,32 @@ double* auxGulosoRandomizado(int seed, float alpha, vector<Sala> *salas) {
     double espOcupadoSup = 0;
     double espOcupadoInf = 0;
     double espOcupadoMenor = 0;
-    vector<int> *idCandidatos = new vector<int>;
-    vector<double> *fluxoCandidatos = new vector<double>;
-    bool *salasInseridas = new bool[numSalas];
+    vector<AuxOrdena*> candidatos;
 
     for(int i=0; i<numSalas; i++) {
         corredor[i] = 0;
-        salasInseridas[i] = false;
-        idCandidatos->push_back(i);
-        fluxoCandidatos->push_back(0);
+        candidatos.push_back(new AuxOrdena(i, 0));
     }
 
     idSala = selecionaOrigem(salas);
     espOcupadoSup = salas->at(idSala).largura;
-    corredor[idSala] = espOcupadoSup/2;
-    salasInseridas[idSala] = true;
-    numSalasInseridas++;
+    corredor[idSala] = espOcupadoSup/2.0;
+    candidatos.erase(candidatos.begin()+idSala);
 
     idUltimaAdd = idSala;
-    while(numSalasInseridas < numSalas) {
-        for(int i=0; i<numSalas; i++) {
-            idCandidatos->at(i) = i;
-            if(!salasInseridas[i])
-                fluxoCandidatos->at(i) = fabs((fabs(corredor[idUltimaAdd]) - espOcupadoMenor + salas->at(i).largura/2)) * salas->at(idUltimaAdd).fluxo[i];
-            else
-                fluxoCandidatos->at(i) = 0;
-        } 
-        heapSort(fluxoCandidatos, idCandidatos);
+    while(candidatos.size() > 0) {
+        for(int i=0; i<numSalas; i++)
+            candidatos[i]->fluxoCandidato = fabs((fabs(corredor[idUltimaAdd]) - espOcupadoMenor + salas->at(candidatos[i]->idCandidato).largura/2.0)) * salas->at(idUltimaAdd).fluxo[candidatos[i]->idCandidato];
         
-        aleatorio = rand()%(int)ceil(alpha*(numSalas-numSalasInseridas));
-        fluxoCandidatos->at(aleatorio);
-        idSala = idCandidatos->at(aleatorio);
+        sort(candidatos.begin(), candidatos.end(), compara_sort);
+        
+        aleatorio = rand()%(int)ceil(alpha*candidatos.size());
+        idSala = candidatos[aleatorio]->idCandidato;
         if(espOcupadoSup < espOcupadoInf) {
-            corredor[idSala] = espOcupadoSup + salas->at(idSala).largura/2;
+            corredor[idSala] = espOcupadoSup + salas->at(idSala).largura/2.0;
             espOcupadoSup += salas->at(idSala).largura;
         } else {
-            corredor[idSala] = (espOcupadoInf + salas->at(idSala).largura/2)*-1;
+            corredor[idSala] = (espOcupadoInf + salas->at(idSala).largura/2.0)*-1.0;
             espOcupadoInf += salas->at(idSala).largura;
         }
         if(espOcupadoSup < espOcupadoInf)
@@ -256,13 +467,10 @@ double* auxGulosoRandomizado(int seed, float alpha, vector<Sala> *salas) {
         else
             espOcupadoMenor = espOcupadoInf;
 
-        salasInseridas[idSala] = true;
-        numSalasInseridas++;
+        delete candidatos[aleatorio];
+        candidatos.erase(candidatos.begin()+aleatorio);
     }
 
-    delete idCandidatos;
-    delete fluxoCandidatos;
-    delete[] salasInseridas;
     return corredor;
 }
 
@@ -346,56 +554,96 @@ double* gulosoReativo(vector<Sala> *salas, int numInteracoes, int tamanhoBloco) 
 
         indiceAlpha++;
     }
-    cout << "Melhor Alpha: " << melhorAlpha << endl;
     return menorCorredor;
 }
 
-void cenarioUm(string arquivo) {
+double* solucaoInicial(vector<Sala> *salas) {
     double *solucao;
-    vector<Sala> *salas;
+    double *melhorSolucao;
+    double menorCusto;
+    double custo;
     clock_t tempo[2];
     clock_t duracao;
 
-    cout << "INSTANCIA: " << arquivo << endl << endl;
-
-    salas = carregaInstancia("../Instancias/" + arquivo);
     tempo[0] = clock();
     solucao = guloso(salas);
     tempo[1] = clock();
     duracao = (tempo[1] - tempo[0]) * 1000 / CLOCKS_PER_SEC;
-    cout << "GULOSO - Tempo: " << (float)duracao << "ms" << endl;
-    apresentaSolucao(salas, solucao);
-    cout << endl;
-    delete[] solucao;
+    //cout << "GULOSO - Tempo: " << (float)duracao << "ms" << endl;
+    //apresentaSolucao(salas, solucao);
+    buscaLocalSwap(salas, solucao);
+    //apresentaSolucao(salas, solucao);
+
+    melhorSolucao = solucao;
+    menorCusto = calculaCusto(salas, solucao);
 
     tempo[0] = clock();
     solucao = gulosoRandomizado(0.3, salas);
     tempo[1] = clock();
     duracao = (tempo[1] - tempo[0]) * 1000 / CLOCKS_PER_SEC;
-    cout << "GULOSO RANDOMIZADO - Tempo: " << (float)duracao << "ms" << endl;
-    apresentaSolucao(salas, solucao);
-    cout << endl;
-    delete[] solucao;
+    //cout << "GULOSO RANDOMIZADO - Tempo: " << (float)duracao << "ms" << endl;
+    //apresentaSolucao(salas, solucao);
+    buscaLocalSwap(salas, solucao);
+    //apresentaSolucao(salas, solucao);
+    
+    custo = calculaCusto(salas, solucao);
+    if(custo < menorCusto) {
+        menorCusto = custo;
+        delete melhorSolucao;
+        melhorSolucao = solucao;
+    } else
+        delete solucao;
 
     tempo[0] = clock();
     solucao = gulosoReativo(salas, 200, 20);
     tempo[1] = clock();
     duracao = (tempo[1] - tempo[0]) * 1000 / CLOCKS_PER_SEC;
-    cout << "GULOSO REATIVO - Tempo: " << (float)duracao << "ms" << endl;
-    apresentaSolucao(salas, solucao);
-    cout << endl;
-    delete[] solucao;
+    //cout << "GULOSO REATIVO - Tempo: " << (float)duracao << "ms" << endl;
+    //apresentaSolucao(salas, solucao);
+    buscaLocalSwap(salas, solucao);
+    //apresentaSolucao(salas, solucao);
+    
+    custo = calculaCusto(salas, solucao);
+    if(custo < menorCusto) {
+        menorCusto = custo;
+        delete melhorSolucao;
+        melhorSolucao = solucao;
+    } else
+        delete solucao;
+
+    return melhorSolucao;
+}
+
+void cenarioUm(string arquivo, double menorCusto) {
+    vector<Sala> *salas;
+    double* solucao;
+    double custo;
+
+    cout << "INSTANCIA: " << arquivo << endl;
+    salas = carregaInstancia("../Instancias/" + arquivo);
+    if(salas == nullptr)
+        return;
+
+    solucao = solucaoInicial(salas);
+    custo = calculaCusto(salas, solucao);
+
+    cout << "Melhor Solucao: ";
+    for(int i=0; i<salas->size(); i++)
+        cout << solucao[i] << " ";
+    cout << endl << "Custo: " << custo << ", Erro: " << (custo - menorCusto)*100/menorCusto << endl << endl;
 
     for(int i=0; i<salas->size(); i++)
         delete[] salas->at(i).fluxo;
-        
+
+    delete solucao;
     delete salas;
 }
 
 int main()
 {
-    cenarioUm("Inst-10salas - 1374.txt");
-    cenarioUm("Inst-11salas - 3439.txt");
-    cenarioUm("Inst-56salas - 296220.txt");
+    cenarioUm("Inst-10salas - 1374.txt", 1374);
+    cenarioUm("Inst-11salas - 3439.txt", 3439);
+    cenarioUm("Inst-56salas - 296220.txt", 296220);
+
     return 0;
 }
