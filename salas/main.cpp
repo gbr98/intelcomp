@@ -137,6 +137,10 @@ bool verificaSolucao(vector<Sala> *salas, double *corredor) {
 
 double calculaCusto(vector<Sala> *salas, double *corredor) {
     double custo = 0;
+
+    if(corredor == nullptr)
+        return -1;
+
     for(int i=0; i<salas->size(); i++) {
         for(int j=i+1; j<salas->size(); j++)
                 custo += fabs(fabs(corredor[i]) - fabs(corredor[j]))*salas->at(i).fluxo[j];
@@ -424,7 +428,7 @@ double* guloso(vector<Sala> *salas) {
     return corredor;
 }
 
-double* auxGulosoRandomizado(int seed, float alpha, vector<Sala> *salas) {
+double* auxGulosoRandomizado(vector<Sala> *salas, float alpha, int seed) {
     srand(seed);
     int numSalas = salas->size();
     int aleatorio;
@@ -448,13 +452,13 @@ double* auxGulosoRandomizado(int seed, float alpha, vector<Sala> *salas) {
 
     idUltimaAdd = idSala;
     while(candidatos.size() > 0) {
-        for(int i=0; i<numSalas; i++)
+        for(int i=0; i<candidatos.size(); i++)
             candidatos[i]->fluxoCandidato = fabs((fabs(corredor[idUltimaAdd]) - espOcupadoMenor + salas->at(candidatos[i]->idCandidato).largura/2.0)) * salas->at(idUltimaAdd).fluxo[candidatos[i]->idCandidato];
-        
         sort(candidatos.begin(), candidatos.end(), compara_sort);
         
         aleatorio = rand()%(int)ceil(alpha*candidatos.size());
         idSala = candidatos[aleatorio]->idCandidato;
+        
         if(espOcupadoSup < espOcupadoInf) {
             corredor[idSala] = espOcupadoSup + salas->at(idSala).largura/2.0;
             espOcupadoSup += salas->at(idSala).largura;
@@ -470,17 +474,17 @@ double* auxGulosoRandomizado(int seed, float alpha, vector<Sala> *salas) {
         delete candidatos[aleatorio];
         candidatos.erase(candidatos.begin()+aleatorio);
     }
-
+    
     return corredor;
 }
 
-double* gulosoRandomizado(float alpha, vector<Sala> *salas) {
+double* gulosoRandomizado(vector<Sala> *salas, float alpha) {
     double menorCusto = INFINITY;
     double custo;
     double *menorCorredor = nullptr;
     double *corredor;
     for(int i=0; i<30; i++) {
-        corredor = auxGulosoRandomizado(i, alpha, salas);
+        corredor = auxGulosoRandomizado(salas, alpha, i);
         custo = calculaCusto(salas, corredor);
         if(custo < menorCusto) {
             if(menorCorredor != nullptr)
@@ -511,7 +515,7 @@ double* gulosoReativo(vector<Sala> *salas, int numInteracoes, int tamanhoBloco) 
 
     for(int i=1; i<=NUMALPHAS; i++) {
         alphas.push_back(i*0.05);
-        corredor = gulosoRandomizado(alphas[i-1], salas);
+        corredor = gulosoRandomizado(salas, alphas[i-1]);
         custo = calculaCusto(salas, corredor);
         somatorioCustos.push_back(custo);
         quantSelecoes.push_back(1);
@@ -541,7 +545,7 @@ double* gulosoReativo(vector<Sala> *salas, int numInteracoes, int tamanhoBloco) 
             }
         }
 
-        corredor = gulosoRandomizado(alphas[indiceAlpha], salas);
+        corredor = gulosoRandomizado(salas, alphas[indiceAlpha]);
         custo = calculaCusto(salas, corredor);
         if(custo < menorCusto) {
             if(menorCorredor != nullptr)
@@ -557,93 +561,181 @@ double* gulosoReativo(vector<Sala> *salas, int numInteracoes, int tamanhoBloco) 
     return menorCorredor;
 }
 
-double* solucaoInicial(vector<Sala> *salas) {
+double* graspGuloso(vector<Sala> *salas, int numInteracoes) {
     double *solucao;
     double *melhorSolucao;
     double menorCusto;
     double custo;
-    clock_t tempo[2];
-    clock_t duracao;
 
-    tempo[0] = clock();
-    solucao = guloso(salas);
-    tempo[1] = clock();
-    duracao = (tempo[1] - tempo[0]) * 1000 / CLOCKS_PER_SEC;
-    //cout << "GULOSO - Tempo: " << (float)duracao << "ms" << endl;
-    //apresentaSolucao(salas, solucao);
-    buscaLocalSwap(salas, solucao);
-    //apresentaSolucao(salas, solucao);
-
-    melhorSolucao = solucao;
-    menorCusto = calculaCusto(salas, solucao);
-
-    tempo[0] = clock();
-    solucao = gulosoRandomizado(0.3, salas);
-    tempo[1] = clock();
-    duracao = (tempo[1] - tempo[0]) * 1000 / CLOCKS_PER_SEC;
-    //cout << "GULOSO RANDOMIZADO - Tempo: " << (float)duracao << "ms" << endl;
-    //apresentaSolucao(salas, solucao);
-    buscaLocalSwap(salas, solucao);
-    //apresentaSolucao(salas, solucao);
-    
-    custo = calculaCusto(salas, solucao);
-    if(custo < menorCusto) {
-        menorCusto = custo;
-        delete melhorSolucao;
-        melhorSolucao = solucao;
-    } else
-        delete solucao;
-
-    tempo[0] = clock();
-    solucao = gulosoReativo(salas, 200, 20);
-    tempo[1] = clock();
-    duracao = (tempo[1] - tempo[0]) * 1000 / CLOCKS_PER_SEC;
-    //cout << "GULOSO REATIVO - Tempo: " << (float)duracao << "ms" << endl;
-    //apresentaSolucao(salas, solucao);
-    buscaLocalSwap(salas, solucao);
-    //apresentaSolucao(salas, solucao);
-    
-    custo = calculaCusto(salas, solucao);
-    if(custo < menorCusto) {
-        menorCusto = custo;
-        delete melhorSolucao;
-        melhorSolucao = solucao;
-    } else
-        delete solucao;
+    melhorSolucao = nullptr;
+    menorCusto = INFINITY;
+    for(int i=0; i<numInteracoes; i++) {
+        solucao = guloso(salas);
+        buscaLocalSwap(salas, solucao);
+        custo = calculaCusto(salas, solucao);
+        if(custo < menorCusto) {
+            menorCusto = custo;
+            if(melhorSolucao != nullptr)
+                delete[] melhorSolucao;
+            melhorSolucao = solucao;
+        } else
+            delete[] solucao;
+    }
 
     return melhorSolucao;
 }
 
-void cenarioUm(string arquivo, double menorCusto) {
-    vector<Sala> *salas;
-    double* solucao;
+double* graspRandomizado(vector<Sala> *salas, int numInteracoes, float alpha) {
+    double *solucao;
+    double *melhorSolucao;
+    double menorCusto;
     double custo;
 
-    cout << "INSTANCIA: " << arquivo << endl;
+    melhorSolucao = nullptr;
+    menorCusto = INFINITY;
+    for(int i=0; i<numInteracoes; i++) {
+        solucao = gulosoRandomizado(salas, alpha);
+        buscaLocalSwap(salas, solucao);
+        custo = calculaCusto(salas, solucao);
+        if(custo < menorCusto) {
+            menorCusto = custo;
+            if(melhorSolucao != nullptr)
+                delete[] melhorSolucao;
+            melhorSolucao = solucao;
+        } else
+            delete[] solucao;
+    }
+
+    return melhorSolucao;
+}
+
+double* graspReativo(vector<Sala> *salas, int numInteracoes, int numIteracoesReativo, int tamanhoBloco) {
+    double *solucao;
+    double *melhorSolucao;
+    double menorCusto;
+    double custo;
+
+    melhorSolucao = nullptr;
+    menorCusto = INFINITY;
+    for(int i=0; i<numInteracoes; i++) {
+        solucao = gulosoReativo(salas, numIteracoesReativo, tamanhoBloco);
+        buscaLocalSwap(salas, solucao);
+        custo = calculaCusto(salas, solucao);
+        if(custo < menorCusto) {
+            menorCusto = custo;
+            if(melhorSolucao != nullptr)
+                delete[] melhorSolucao;
+            melhorSolucao = solucao;
+        } else
+            delete[] solucao;
+    }
+
+    return melhorSolucao;
+}
+
+void cenarioUm(string arquivo, double custoObjetivo) {
+    int melhorMetodo;
+    double *solucao;
+    double menorCusto;
+    double custo[6];
+    double tempoMetodos[6];
+    clock_t tempo[2];
+    string metodos[6] = {"Guloso", "Guloso Randomizado", "Guloso Reativo", "GRASP-Guloso", "GRASP-Randomizado", "GRASP-Reativo"};
+    vector<Sala> *salas;
+
     salas = carregaInstancia("../Instancias/" + arquivo);
-    if(salas == nullptr)
+    if(salas == nullptr) 
         return;
 
-    solucao = solucaoInicial(salas);
-    custo = calculaCusto(salas, solucao);
+    tempo[0] = clock();
+    solucao = guloso(salas);
+    tempo[1] = clock();
+    tempoMetodos[0] = (tempo[1] - tempo[0]) * 1000 / CLOCKS_PER_SEC;
+    custo[0] = calculaCusto(salas, solucao);
+    menorCusto = custo[0];
+    melhorMetodo = 0;
+    delete[] solucao;
+    
+    tempo[0] = clock();
+    solucao = gulosoRandomizado(salas, 0.2);
+    tempo[1] = clock();
+    tempoMetodos[1] = (tempo[1] - tempo[0]) * 1000 / CLOCKS_PER_SEC;
+    custo[1] = calculaCusto(salas, solucao);
+    if(custo[1] < menorCusto) {
+        menorCusto = custo[1];
+        melhorMetodo = 1;
+    }
+    delete[] solucao;
+    
+    tempo[0] = clock();
+    solucao = gulosoReativo(salas, 200, 20);
+    tempo[1] = clock();
+    tempoMetodos[2] = (tempo[1] - tempo[0]) * 1000 / CLOCKS_PER_SEC;
+    custo[2] = calculaCusto(salas, solucao);
+    if(custo[2] < menorCusto) {
+        menorCusto = custo[2];
+        melhorMetodo = 2;
+    }
+    delete[] solucao;
+    
+    tempo[0] = clock();
+    solucao = graspGuloso(salas, 10);
+    tempo[1] = clock();
+    tempoMetodos[3] = (tempo[1] - tempo[0]) * 1000 / CLOCKS_PER_SEC;
+    custo[3] = calculaCusto(salas, solucao);
+    if(custo[3] < menorCusto) {
+        menorCusto = custo[3];
+        melhorMetodo = 3;
+    }
+    delete[] solucao;
+    
+    tempo[0] = clock();
+    solucao = graspRandomizado(salas, 10, 0.5);
+    tempo[1] = clock();
+    tempoMetodos[4] = (tempo[1] - tempo[0]) * 1000 / CLOCKS_PER_SEC;
+    custo[4] = calculaCusto(salas, solucao);
+    if(custo[4] < menorCusto) {
+        menorCusto = custo[4];
+        melhorMetodo = 4;
+    }
+    delete[] solucao;
+    
+    tempo[0] = clock();
+    solucao = graspReativo(salas, 10, 200, 50);
+    tempo[1] = clock();
+    tempoMetodos[5] = (tempo[1] - tempo[0]) * 1000 / CLOCKS_PER_SEC;
+    custo[5] = calculaCusto(salas, solucao);
+    if(custo[5] < menorCusto) {
+        menorCusto = custo[5];
+        melhorMetodo = 5;
+    }
+    delete[] solucao;
+    
 
-    cout << "Melhor Solucao: ";
-    for(int i=0; i<salas->size(); i++)
-        cout << solucao[i] << " ";
-    cout << endl << "Custo: " << custo << ", Erro: " << (custo - menorCusto)*100/menorCusto << endl << endl;
-
+    for(int i=0; i<6; i++)
+        cout << metodos[i] << ": " << "Custo: " << custo[i] << ", Erro: " << (custo[i] - custoObjetivo)*100/custoObjetivo << ", Tempo: " << tempoMetodos[i] << "ms" << endl;
+    cout << "Melhor Metodo: " << metodos[melhorMetodo] << endl << endl;
+    
     for(int i=0; i<salas->size(); i++)
         delete[] salas->at(i).fluxo;
 
-    delete solucao;
     delete salas;
 }
 
-int main()
-{
-    cenarioUm("Inst-10salas - 1374.txt", 1374);
-    cenarioUm("Inst-11salas - 3439.txt", 3439);
-    cenarioUm("Inst-56salas - 296220.txt", 296220);
+int main() {
+    string arquivo;
+
+    arquivo = "Inst-10salas - 1374.txt";
+    cout << "INSTANCIA: " << arquivo << endl;
+    cenarioUm(arquivo, 1374);
+
+    arquivo = "Inst-11salas - 3439.txt";
+    cout << "INSTANCIA: " << arquivo << endl;
+    cenarioUm(arquivo, 3439);
+
+    arquivo = "Inst-56salas - 296220.txt";
+    cout << "INSTANCIA: " << arquivo << endl;
+    cenarioUm(arquivo, 296220);
 
     return 0;
 }
