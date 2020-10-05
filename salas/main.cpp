@@ -397,7 +397,7 @@ double* guloso(vector<Sala> *salas) {
         maiorFluxo = -1;
         for(int i=0; i<numSalas; i++) {
             if(!salasInseridas[i]) {
-                custoAux = fabs((fabs(solucao[idUltimaAdd]) - espOcupadoMenor + salas->at(i).largura/2.0)) * salas->at(idUltimaAdd).fluxo[i];
+                custoAux = fabs(fabs(solucao[idUltimaAdd]) - (espOcupadoMenor + salas->at(i).largura/2.0)) * salas->at(idUltimaAdd).fluxo[i];
                 if(custoAux > maiorFluxo) {
                     idMaiorFluxo = i;
                     maiorFluxo = custoAux;
@@ -453,7 +453,7 @@ double* auxGulosoRandomizado(vector<Sala> *salas, float alpha, int seed) {
     idUltimaAdd = idSala;
     while(candidatos.size() > 0) {
         for(int i=0; i<candidatos.size(); i++)
-            candidatos[i]->fluxoCandidato = fabs((fabs(solucao[idUltimaAdd]) - espOcupadoMenor + salas->at(candidatos[i]->idCandidato).largura/2.0)) * salas->at(idUltimaAdd).fluxo[candidatos[i]->idCandidato];
+            candidatos[i]->fluxoCandidato = fabs(fabs(solucao[idUltimaAdd]) - (espOcupadoMenor + salas->at(candidatos[i]->idCandidato).largura/2.0)) * salas->at(idUltimaAdd).fluxo[candidatos[i]->idCandidato];
         sort(candidatos.begin(), candidatos.end(), compara_sort);
         
         aleatorio = rand()%(int)ceil(alpha*candidatos.size());
@@ -700,7 +700,7 @@ void cenarioUm(string arquivo, double custoObjetivo) {
     delete[] solucao;
 
     tempo[0] = clock();
-    solucao = graspRandomizado(salas, 500, 0.65);
+    solucao = graspRandomizado(salas, 500, 0.7);
     //FUI MUDANDO O NÚMERO DE ITERAÇÕES DO GRASP E O ALPHA UTILIZADO. RESULTADOS ABAIXO PARA AS DUAS PRIMEIRAS INSTÂNCIAS
     //100 iterações
     //0.5 1393.5 3513.5
@@ -719,7 +719,7 @@ void cenarioUm(string arquivo, double custoObjetivo) {
     //0.3 1380.5 3439.5
 
     //500 iterações
-    //0.65 1378.5 3439.5
+    //0.65 1374.5 3466.5
     
     tempo[1] = clock();
     tempoMetodos[4] = (tempo[1] - tempo[0]) * 1000 / CLOCKS_PER_SEC;
