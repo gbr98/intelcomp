@@ -401,12 +401,12 @@ double* guloso(vector<Sala> *salas) {
         maiorFluxo = -1;
         for(int i=0; i<numSalas; i++) {
             if(!salasInseridas[i]) {
-                //custoAux = fabs(fabs(solucao[idUltimaAdd]) - (espOcupadoMenor + salas->at(i).largura/2.0)) * salas->at(idUltimaAdd).fluxo[i];
-                
+                custoAux = fabs(fabs(solucao[idUltimaAdd]) - (espOcupadoMenor + salas->at(i).largura/2.0)) * salas->at(idUltimaAdd).fluxo[i];
+                /*
                 custoAux = 0;
                 for(int j = 0; j < numSalasInseridas; j++){
                     custoAux += (1.0/pow(2,j))*fabs(fabs(solucao[ordemInseridas[j]]) - (espOcupadoMenor + salas->at(i).largura/2.0)) * salas->at(ordemInseridas[j]).fluxo[i];
-                }
+                }*/
                 if(custoAux > maiorFluxo) {
                     idMaiorFluxo = i;
                     maiorFluxo = custoAux;
@@ -528,6 +528,7 @@ double* gulosoReativo(vector<Sala> *salas, int numInteracoes, int tamanhoBloco, 
     int indiceAlpha;
 
     melhorSolucao = guloso(salas);
+    buscaLocalSwap(salas, melhorSolucao);
     menorCusto = calculaCusto(salas, melhorSolucao);
     melhorAlpha = 0;
     
@@ -575,7 +576,7 @@ double* gulosoReativo(vector<Sala> *salas, int numInteracoes, int tamanhoBloco, 
         } else
             delete[] solucao;
 
-        indiceAlpha++;
+        countBloco++;
     }
     //cout << "MELHOR: " << melhorAlpha << endl;
     return melhorSolucao;
@@ -700,7 +701,7 @@ void cenarioUm(string arquivo, double custoObjetivo) {
 
 double teste_apr(string arquivo, double custoObjetivo, int rep){
 
-    int numMetodos = 3;
+    int numMetodos = 4;
     int melhorMetodo = 0;
     double *solucao;
     double menorCusto = INFINITY;
@@ -709,13 +710,13 @@ double teste_apr(string arquivo, double custoObjetivo, int rep){
     double melhorAlpha, scoreAlpha;
     //double melhorAlphaG, scoreAlphaG;
     clock_t tempo[2];
-    string metodos[numMetodos] = {"Guloso", "Guloso Randomizado", "GRASP-Guloso"};//, "GRASP-Randomizado"};
+    string metodos[numMetodos] = {"Guloso", "Guloso Randomizado", "GRASP-Guloso", "GRASP-Reativo"};
     vector<Sala> *salas;
 
     double* melhorMetodos = new double[numMetodos];
     double* mediaMetodos = new double[numMetodos];
     double* mediaTempoMetodos = new double[numMetodos];
-    for(int i = 0; i < 3; i++){
+    for(int i = 0; i < numMetodos; i++){
         melhorMetodos[i] = INFINITY;
         mediaMetodos[i] = 0;
         mediaTempoMetodos[i] = 0;
@@ -774,28 +775,18 @@ double teste_apr(string arquivo, double custoObjetivo, int rep){
         }
         delete[] solucao;
 
-        //Grasp Randomizado [vários parâmetros]
-        /*
-        melhorAlphaG = 0;
-        scoreAlphaG = INFINITY;
-        for(double alpha = 0.1; alpha < 1; alpha += 0.1){
-            tempo[0] = clock();
-            solucao = graspRandomizado(salas, 500, alpha);
-            tempo[1] = clock();
-            tempoMetodos[3] = (tempo[1] - tempo[0]) * 1000 / CLOCKS_PER_SEC;
-            custo[3] = calculaCusto(salas, solucao);
-            if(custo[1] < scoreAlphaG){
-                scoreAlphaG = custo[1];
-                melhorAlphaG = alpha;
-            }
-            if(custo[3] < menorCusto) {
-                menorCusto = custo[3];
-                melhorMetodo = 3;
-            }
-            delete[] solucao;
-            cout << "GrR:";
+        //Grasp Randomizado
+        tempo[0] = clock();
+        solucao = graspReativo(salas, 50, 5, 55+exec);
+        tempo[1] = clock();
+        tempoMetodos[3] = (tempo[1] - tempo[0]) * 1000 / CLOCKS_PER_SEC;
+        custo[3] = calculaCusto(salas, solucao);
+        if(custo[3] < menorCusto) {
+            menorCusto = custo[3];
+            melhorMetodo = 3;
         }
-        cout << endl;*/
+        delete[] solucao;
+
         // Relatório Exec
         for(int i=0; i<numMetodos; i++){
             mediaMetodos[i] += custo[i];
@@ -829,6 +820,9 @@ double teste_apr(string arquivo, double custoObjetivo, int rep){
         arqSaida << "," << melhorMetodos[i];
     }
     for(int i=0; i<numMetodos; i++){
+        arqSaida << "," << (melhorMetodos[i] - custoObjetivo)*100/custoObjetivo;
+    }
+    for(int i=0; i<numMetodos; i++){
         arqSaida << "," << mediaMetodos[i]/((double)rep);
     }
     for(int i=0; i<numMetodos; i++){
@@ -848,10 +842,10 @@ int main() {
     string arquivo;
     
     double melhorCusto[3] = {1374.5,3439.5,3195};
-    string tiposMenores[3] = {"S10.txt","S11.txt","A15"};
+    string tiposMenores[3] = {"S10","S11","A15"};
     for(int i=0; i<3; i++){
         cout << "INSTANCIA: " << tiposMenores[i] << endl;
-        cenarioUm(tiposMenores[i], melhorCusto[i]);
+        teste_apr(tiposMenores[i], melhorCusto[i],30);
     }
 
     double melhor[15] = {12731.0,108016.5,86646.5,68708.0,124017.5,20470.0,208079.0,162196.0,118260.5,332834.0,31972.0,248225.0,85190.0,156666.0,296176.5};
@@ -860,7 +854,7 @@ int main() {
         for(int inst_n = 1; inst_n <= 5; inst_n++){
             tipos[i][11] = to_string(inst_n)[0];
             cout << "INSTANCIA: " << tipos[i] << endl;
-            cenarioUm(tipos[i], melhor[5*i+inst_n-1]);
+            teste_apr(tipos[i], melhor[5*i+inst_n-1],30);
         }
     }
     return 0;
