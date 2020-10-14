@@ -566,6 +566,7 @@ double* gulosoReativo(vector<Sala> *salas, int numInteracoes, int tamanhoBloco, 
         }
 
         solucao = gulosoRandomizado(salas, alphas[indiceAlpha], seed+i);
+        buscaLocalSwap(salas, solucao);
         custo = calculaCusto(salas, solucao);
         if(custo < menorCusto) {
             melhorSolucao = solucao;
@@ -633,7 +634,6 @@ double* graspReativo(vector<Sala> *salas, int numIteracoesReativo, int tamanhoBl
 
     srand(seed);
     solucao = gulosoReativo(salas, numIteracoesReativo, tamanhoBloco, seed);
-    buscaLocalSwap(salas, solucao);
     return solucao;
 }
 
